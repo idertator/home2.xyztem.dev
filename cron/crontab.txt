@@ -1,0 +1,3 @@
+T3_BACKUP_PATH="/srv/backup"
+
+0 23 * * * /home/idertator/services/backup/t3backup.sh >> /home/idertator/crontab.log
