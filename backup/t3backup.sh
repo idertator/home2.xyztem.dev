@@ -15,7 +15,7 @@
 # docs/backup-integration.md). A reporting failure never masks a backup
 # failure: the exit code reflects the backups only.
 
-T3_BACKUP_VERSION="1.4.0"
+T3_BACKUP_VERSION="1.5.0"
 T3_BACKUP_PATH="/srv/backup"
 
 T3LOGS_URL="https://logs.topgroupexpress.com"
@@ -65,7 +65,7 @@ os=$(uname)
 if [ "$os" = "Darwin" ]; then
     MINIO_CLIENT="mc"
 elif [ "$os" = "Linux" ]; then
-    MINIO_CLIENT="mcc"
+    MINIO_CLIENT="minio-client"
 else
     error_message "Unsupported operating system: $os"
     exit 1

@@ -7,13 +7,13 @@
 # Individual steps: make backup | make crontab | make agent
 # System packages only (Debian 13, uses sudo): make install-deps
 
-BACKUP_DEPS := curl jq uuidgen pg_dump rsync git
+BACKUP_DEPS := curl jq uuidgen pg_dump rsync git minio-client
 
 # pg_dump must be at least as new as the server, and Debian 13 only ships
 # PostgreSQL 17, so the client comes from the PGDG apt repository.
 PG_VERSION := 18
 PGDG_KEY := /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
-DEBIAN_PKGS := ca-certificates curl jq uuid-runtime rsync git postgresql-client-$(PG_VERSION)
+DEBIAN_PKGS := ca-certificates curl jq uuid-runtime rsync git minio-client postgresql-client-$(PG_VERSION)
 
 .PHONY: install install-deps check backup crontab agent
 
@@ -48,7 +48,6 @@ check:
 	@echo "Prerequisites OK"
 
 backup:
-	@if [ ! -x $(HOME)/.local/bin/mcc ]; then $(MAKE) -C backup install-minio; fi
 	$(MAKE) -C backup install
 
 # Replaces the user's whole crontab with cron/crontab.txt; the previous one is

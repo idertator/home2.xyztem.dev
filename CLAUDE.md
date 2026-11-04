@@ -18,7 +18,7 @@ On the server, from the repo root (needs `backup/.env` and `logs/.env` in place)
 make install         # install-deps + check + backup + crontab + agent, in that order
 make install-deps    # Debian 13 only, sudo: apt packages + postgresql-client-18 from PGDG
 make check           # verify required commands and both .env files exist
-make backup          # mcc (if missing) + backup/ install: symlink, `prod` mc alias
+make backup          # backup/ install: symlink, `prod` MinIO alias
 make crontab         # REPLACES the user's crontab with cron/crontab.txt (old one saved to ~/crontab.<ts>.bak)
 make agent           # runs logs/setup-agent.sh (uses sudo)
 make -n install      # dry run
@@ -29,7 +29,7 @@ Sub-Makefiles run through `make -C`, so use `$(CURDIR)`, not `${PWD}`, for paths
 
 Running `t3backup.sh` performs real backups against production hosts and reports to t3-logs; there is no dry-run mode. To exercise a unit without reporting, pass `"nop"` as its token.
 
-Runtime deps: `curl`, `jq`, `uuidgen` (checked at startup), plus `pg_dump`, `rsync`, `git`, and the MinIO client. The client is `mc` on macOS and `mcc` on Linux (renamed to avoid clashing with Midnight Commander); the script picks by `uname`.
+Runtime deps: `curl`, `jq`, `uuidgen` (checked at startup), plus `pg_dump`, `rsync`, `git`, and the MinIO client. The client is `mc` on macOS and `minio-client` on Linux (the Debian `minio-client` package, installed by `make install-deps`; `mc` there is Midnight Commander); the script picks by `uname`.
 
 ## t3backup.sh architecture
 

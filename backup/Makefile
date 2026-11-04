@@ -16,8 +16,4 @@ install:
 	
 	@echo "Setup minio"
 	@if [ -z "$(MINIO_ACCESS_KEY)" ] || [ -z "$(MINIO_SECRET_KEY)" ]; then echo "MINIO_ACCESS_KEY / MINIO_SECRET_KEY missing from .env"; exit 1; fi
-	@mcc alias set prod https://minio.topgroupexpress.com $(MINIO_ACCESS_KEY) $(MINIO_SECRET_KEY)
-
-install-minio:
-	curl https://dl.min.io/client/mc/release/linux-amd64/mc --create-dirs -o ${HOME}/.local/bin/mcc
-	chmod +x ${HOME}/.local/bin/mcc
+	@minio-client alias set prod https://minio.topgroupexpress.com $(MINIO_ACCESS_KEY) $(MINIO_SECRET_KEY)
