@@ -35,9 +35,7 @@ Runtime deps: `curl`, `jq`, `uuidgen` (checked at startup), plus `pg_dump`, `rsy
 
 The script is a library of functions followed by a "Run" section at the bottom. **Each backup unit is one function call in that section**, taking a target name and that unit's own t3-logs ingestion JWT. Adding, removing or disabling a unit means editing only those lines.
 
-Unit types: `t3b_postgres_db` (`pg_dump -Fc` to `postgres/YYYYMMDD_<db>`, then `t3b_postgres_prune` deletes dumps older than `POSTGRES_RETENTION_DAYS`), `t3b_minio_bucket` (`mirror prod/<bucket>` into one dir per bucket so each is measured separately), `t3b_git_repo` (clone or fetch+pull under `git/`, inside a subshell so a failed `cd` doesn't leak), and Meilisearch.
-
-Meilisearch is one unit split across two calls: `t3b_meili_schedule_backup` runs first to request a snapshot, `t3b_meili_sync_backup` runs last to rsync it, giving the snapshot time to finish. They share state through `T3B_MEILI_*` globals and report as a single event.
+Unit types: `t3b_postgres_db` (`pg_dump -Fc` to `postgres/YYYYMMDD_<db>`, then `t3b_postgres_prune` deletes dumps older than `POSTGRES_RETENTION_DAYS`), `t3b_minio_bucket` (`mirror prod/<bucket>` into one dir per bucket so each is measured separately), and `t3b_git_repo` (clone or fetch+pull under `git/`, inside a subshell so a failed `cd` doesn't leak).
 
 Every unit follows the same pattern: generate `event_id` + `started_at` before work, capture stderr to a temp file, then call `t3b_report` with `succeeded` (artifact path, item count, byte size) or `failed` (last 2000 bytes of stderr).
 
@@ -57,7 +55,7 @@ Bump `T3_BACKUP_VERSION` when changing the script.
 Secrets live in a `.env` next to each script that needs them: `backup/.env` and `logs/.env` (`GH_TOKEN`). Both are gitignored and mode 0600. The rest of this section is about `backup/.env`. `.env.example` is the tracked list of every required variable. Keep the two in sync. The file is plain `KEY=value` with no quotes, because both bash (`set -a; . .env`) and make (`-include .env`) read it.
 
 - The script finds `.env` next to its real path, resolving the `~/.local/bin` symlink. `T3_BACKUP_ENV` overrides that location.
-- t3-logs tokens are named `T3LOGS_TOKEN_<PG|MINIO|GIT>_<NAME>`, plus `T3LOGS_TOKEN_MEILI`. Adding a unit means adding its variable to both env files.
+- t3-logs tokens are named `T3LOGS_TOKEN_<PG|MINIO|GIT>_<NAME>`. Adding a unit means adding its variable to both env files.
 - `"nop"` is the only explicit opt-out from reporting. An empty token means the variable is missing; the script logs a warning and still runs the backup.
 
 Never write secret values into tracked files.

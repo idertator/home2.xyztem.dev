@@ -7,7 +7,7 @@
 # that unit; nothing else needs to change. Pass "nop" as the token to run a
 # backup without reporting it.
 #
-# Secrets (the tokens and MEILI_API_KEY) live in .env next to this script,
+# Secrets (the tokens) live in .env next to this script,
 # which is untracked; .env.example lists every variable it must define.
 # T3_BACKUP_ENV overrides its location.
 #
@@ -15,7 +15,7 @@
 # docs/backup-integration.md). A reporting failure never masks a backup
 # failure: the exit code reflects the backups only.
 
-T3_BACKUP_VERSION="1.5.0"
+T3_BACKUP_VERSION="1.6.0"
 T3_BACKUP_PATH="/srv/backup"
 
 T3LOGS_URL="https://logs.topgroupexpress.com"
@@ -27,10 +27,6 @@ POSTGRES_USER="postgres"
 POSTGRES_RETENTION_DAYS="10"
 
 MINIO_HOST="37.187.250.111"
-
-MEILI_URL="https://meili.topgroupexpress.com"
-MEILI_SNAPSHOT_HOST="ubuntu@37.187.250.111"
-MEILI_SNAPSHOT_PATH="/home/ubuntu/repos/server-production-3/meili/data/snapshots"
 
 # Set to 1 by any failing backup unit; returned as the script's exit code.
 T3B_EXIT_CODE=0
@@ -230,11 +226,6 @@ t3b_check_env() {
       exit 1
     fi
 
-    if [ -z "${MEILI_API_KEY}" ]; then
-      error_message "MEILI_API_KEY is not set in ${T3_BACKUP_ENV}"
-      exit 1
-    fi
-
     echo "Root Path: ${T3_BACKUP_PATH}"
 }
 
@@ -364,67 +355,6 @@ t3b_git_repo() {
     rm -f "${stderr_log}"
 }
 
-# Meilisearch is one backup unit split across two calls: the snapshot is asked
-# for at the start of the run and pulled at the end, to give it time to finish.
-# The snapshot request and the sync are reported together, as one event.
-T3B_MEILI_EVENT_ID=""
-T3B_MEILI_STARTED_AT=""
-T3B_MEILI_ERROR=""
-
-t3b_meili_schedule_backup() {
-    echo "✅ Scheduling Meili snapshot..."
-
-    T3B_MEILI_EVENT_ID=$(t3b_uuid)
-    T3B_MEILI_STARTED_AT=$(t3b_madrid_now)
-    T3B_MEILI_ERROR=""
-
-    local stderr_log
-    stderr_log=$(mktemp)
-
-    if ! curl --silent --show-error --fail \
-        -X POST \
-        -H "Authorization: Bearer ${MEILI_API_KEY}" \
-        "${MEILI_URL}/snapshots" 2>"${stderr_log}"; then
-        T3B_MEILI_ERROR=$(t3b_error_text "$stderr_log" "snapshot request to ${MEILI_URL}/snapshots failed")
-        error_message "    ❌ Meili snapshot request failed"
-    fi
-
-    rm -f "${stderr_log}"
-}
-
-t3b_meili_sync_backup() {
-    local token="$1"
-
-    echo "✅ Syncing Meili..."
-
-    local backup_dir="${T3_BACKUP_PATH}/meili"
-    mkdir -p "${backup_dir}"
-
-    local stderr_log
-    stderr_log=$(mktemp)
-
-    # A snapshot that was never scheduled cannot have been synced.
-    if [ -n "$T3B_MEILI_ERROR" ]; then
-        T3B_EXIT_CODE=1
-        t3b_report "$token" "$T3B_MEILI_EVENT_ID" "$T3B_MEILI_STARTED_AT" "failed" "" "" "" \
-            "$T3B_MEILI_ERROR"
-        rm -f "${stderr_log}"
-        return
-    fi
-
-    if rsync -avz "${MEILI_SNAPSHOT_HOST}:${MEILI_SNAPSHOT_PATH}" "${backup_dir}" 2>"${stderr_log}"; then
-        t3b_report "$token" "$T3B_MEILI_EVENT_ID" "$T3B_MEILI_STARTED_AT" "succeeded" \
-            "$backup_dir" "$(t3b_dir_count "$backup_dir")" "$(t3b_dir_size "$backup_dir")" ""
-    else
-        T3B_EXIT_CODE=1
-        error_message "    ❌ Meili sync failed"
-        t3b_report "$token" "$T3B_MEILI_EVENT_ID" "$T3B_MEILI_STARTED_AT" "failed" "" "" "" \
-            "$(t3b_error_text "$stderr_log" "rsync of Meili snapshots failed without writing to stderr")"
-    fi
-
-    rm -f "${stderr_log}"
-}
-
 # ---------------------------------------------------------------------------
 # Run
 #
@@ -434,9 +364,6 @@ t3b_meili_sync_backup() {
 t3b_title
 t3b_check_env
 t3b_check_deps
-
-# --- Meilisearch snapshot: scheduled first so it is ready by sync time ---
-t3b_meili_schedule_backup
 
 # --- PostgreSQL databases ---
 t3b_postgres_db "spc_devel" "${T3LOGS_TOKEN_PG_SPC_DEVEL}"
@@ -474,8 +401,5 @@ t3b_git_repo "git@github.com:topgroupx/t3-clients.git" "${T3LOGS_TOKEN_GIT_T3_CL
 t3b_git_repo "git@github.com:topgroupx/t3-fit.git" "${T3LOGS_TOKEN_GIT_T3_FIT}"
 t3b_git_repo "git@github.com:topgroupx/t3-pricing.git" "${T3LOGS_TOKEN_GIT_T3_PRICING}"
 t3b_git_repo "git@github.com:topgroupx/t3-spc.git" "${T3LOGS_TOKEN_GIT_T3_SPC}"
-
-# --- Meilisearch sync: reports the snapshot scheduled at the top ---
-t3b_meili_sync_backup "${T3LOGS_TOKEN_MEILI}"
 
 exit "${T3B_EXIT_CODE}"
