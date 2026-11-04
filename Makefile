@@ -1,15 +1,40 @@
 # Install everything on home2.xyztem.dev (checked out at /home/idertator/services).
 #
-#   make install   check prerequisites, then install backup, crontab and t3-logs agent
+#   make install   install system packages, check prerequisites, then install
+#                  backup, crontab and t3-logs agent
 #   make check     only check prerequisites
 #
 # Individual steps: make backup | make crontab | make agent
+# System packages only (Debian 13, uses sudo): make install-deps
 
 BACKUP_DEPS := curl jq uuidgen pg_dump rsync git
 
-.PHONY: install check backup crontab agent
+# pg_dump must be at least as new as the server, and Debian 13 only ships
+# PostgreSQL 17, so the client comes from the PGDG apt repository.
+PG_VERSION := 18
+PGDG_KEY := /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+DEBIAN_PKGS := ca-certificates curl jq uuid-runtime rsync git postgresql-client-$(PG_VERSION)
 
-install: check backup crontab agent
+.PHONY: install install-deps check backup crontab agent
+
+install: install-deps check backup crontab agent
+
+# Debian 13 only; uses sudo, so it may prompt for a password.
+install-deps:
+	@. /etc/os-release; \
+	if [ "$$ID" != debian ] || [ "$$VERSION_ID" != 13 ]; then \
+		echo "install-deps supports Debian 13 only (found $$PRETTY_NAME)"; exit 1; \
+	fi
+	sudo apt-get update
+	sudo apt-get install -y ca-certificates curl
+	sudo install -d /usr/share/postgresql-common/pgdg
+	sudo curl -fsSL -o $(PGDG_KEY) https://www.postgresql.org/media/keys/ACCC4CF8.asc
+	@. /etc/os-release; \
+	echo "deb [signed-by=$(PGDG_KEY)] https://apt.postgresql.org/pub/repos/apt $$VERSION_CODENAME-pgdg main" \
+		| sudo tee /etc/apt/sources.list.d/pgdg.list
+	sudo apt-get update
+	sudo apt-get install -y $(DEBIAN_PKGS)
+	pg_dump --version
 
 check:
 	@missing=""; \

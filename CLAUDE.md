@@ -15,7 +15,8 @@ Ops scripts for the `home2.xyztem.dev` host, checked out there at `/home/idertat
 On the server, from the repo root (needs `backup/.env` and `logs/.env` in place):
 
 ```bash
-make install         # check + backup + crontab + agent, in that order
+make install         # install-deps + check + backup + crontab + agent, in that order
+make install-deps    # Debian 13 only, sudo: apt packages + postgresql-client-18 from PGDG
 make check           # verify required commands and both .env files exist
 make backup          # mcc (if missing) + backup/ install: symlink, `prod` mc alias
 make crontab         # REPLACES the user's crontab with cron/crontab.txt (old one saved to ~/crontab.<ts>.bak)
