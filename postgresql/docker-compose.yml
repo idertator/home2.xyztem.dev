@@ -1,0 +1,64 @@
+# Replica member of the `xyztem` Patroni cluster. The primary (preferred
+# leader) and the image's source live in home3.xyztem.dev/postgresql; this
+# node runs the same two services. See that directory's README for the
+# cluster runbook.
+services:
+  # Patroni's DCS. Three members, one per server, so the cluster keeps quorum
+  # (and can fail over) with any one server down.
+  etcd:
+    container_name: etcd
+    restart: always
+    image: quay.io/coreos/etcd:v3.6.16
+    ports:
+      - ${TAILSCALE_IP:?set TAILSCALE_IP in .env (see .env.example)}:2379:2379
+      - ${TAILSCALE_IP}:2380:2380
+    volumes:
+      - etcd-data:/etcd-data
+    environment:
+      - ETCD_NAME=${NODE_NAME:?set NODE_NAME in .env (see .env.example)}
+      - ETCD_DATA_DIR=/etcd-data
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://${TAILSCALE_IP}:2380
+      - ETCD_ADVERTISE_CLIENT_URLS=http://${TAILSCALE_IP}:2379
+      - ETCD_INITIAL_CLUSTER=${ETCD_INITIAL_CLUSTER:?set ETCD_INITIAL_CLUSTER in .env (see .env.example)}
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_INITIAL_CLUSTER_TOKEN=xyztem-pg
+
+  postgres:
+    container_name: postgres
+    restart: always
+    # Built on idertator-server-03 and copied here with its `make ship`;
+    # there is no registry to pull it from.
+    image: xyztem/postgres:18-patroni
+    pull_policy: never
+    depends_on:
+      - etcd
+    # Patroni stops postgres cleanly on SIGTERM; give it time to checkpoint.
+    stop_grace_period: 2m
+    ports:
+      - 0.0.0.0:${POSTGRES_PORT:?set POSTGRES_PORT in .env (see .env.example)}:5432
+      # Patroni REST API: members and patronictl talk to each other through it.
+      - ${TAILSCALE_IP}:8008:8008
+    volumes:
+      # On the 1 TB /srv SSD, not the root NVMe (too small for the ~85 GB
+      # cluster). Must exist, owned by the image's postgres uid: `make data-dir`.
+      - /srv/postgresql:/var/lib/postgresql
+      - ./etc/postgresql/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./etc/patroni/node.yml:/etc/patroni/10-node.yml:ro
+    environment:
+      - PATRONI_NAME=${NODE_NAME}
+      - PATRONI_ETCD3_HOSTS=${ETCD_HOSTS:?set ETCD_HOSTS in .env (see .env.example)}
+      # What the other members dial: the published ports, on Tailscale.
+      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=${TAILSCALE_IP}:${POSTGRES_PORT}
+      - PATRONI_RESTAPI_CONNECT_ADDRESS=${TAILSCALE_IP}:8008
+      - PATRONI_SUPERUSER_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (see .env.example)}
+      - PATRONI_REPLICATION_PASSWORD=${REPLICATION_PASSWORD:?set REPLICATION_PASSWORD in .env (see .env.example)}
+      - PATRONI_RESTAPI_USERNAME=patroni
+      - PATRONI_RESTAPI_PASSWORD=${PATRONI_API_PASSWORD:?set PATRONI_API_PASSWORD in .env (see .env.example)}
+    shm_size: 2g
+    # No custom seccomp profile: this node's postgresql.conf uses
+    # io_method = worker, which Docker's default profile allows.
+
+volumes:
+  etcd-data:

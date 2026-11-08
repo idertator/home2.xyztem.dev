@@ -1,0 +1,7 @@
+# Per-node Patroni settings, mounted as /etc/patroni/10-node.yml and merged
+# over the image's 00-cluster.yml.
+tags:
+  # On failover Patroni picks the healthy member with the highest priority
+  # among those not behind: server-03 (3), then server-02 (2), then
+  # server-01 (1).
+  failover_priority: 2
