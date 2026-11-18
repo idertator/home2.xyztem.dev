@@ -1,13 +1,13 @@
 # Install everything on home2.xyztem.dev (checked out at /home/idertator/services).
 #
 #   make install   install system packages, check prerequisites, then install
-#                  backup, crontab and t3-logs agent
+#                  backup and crontab
 #   make check     only check prerequisites
 #
-# Individual steps: make backup | make crontab | make agent
+# Individual steps: make backup | make crontab
 # System packages only (Debian 13, uses sudo): make install-deps
 
-BACKUP_DEPS := curl pg_dump rsync git minio-client
+BACKUP_DEPS := pg_dump rsync git minio-client
 
 # pg_dump must be at least as new as the server, and Debian 13 only ships
 # PostgreSQL 17, so the client comes from the PGDG apt repository.
@@ -15,9 +15,9 @@ PG_VERSION := 18
 PGDG_KEY := /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
 DEBIAN_PKGS := ca-certificates curl rsync git minio-client postgresql-client-$(PG_VERSION)
 
-.PHONY: install install-deps check backup crontab agent
+.PHONY: install install-deps check backup crontab
 
-install: install-deps check backup crontab agent
+install: install-deps check backup crontab
 
 # Debian 13 only; uses sudo, so it may prompt for a password.
 install-deps:
@@ -42,9 +42,7 @@ check:
 		command -v $$cmd >/dev/null 2>&1 || missing="$$missing $$cmd"; \
 	done; \
 	if [ -n "$$missing" ]; then echo "Missing commands:$$missing"; exit 1; fi
-	@for f in backup/.env logs/.env; do \
-		if [ ! -f $$f ]; then echo "Missing $$f: copy $$f.example and fill it in"; exit 1; fi; \
-	done
+	@if [ ! -f backup/.env ]; then echo "Missing backup/.env: copy backup/.env.example and fill it in"; exit 1; fi
 	@echo "Prerequisites OK"
 
 backup:
@@ -61,9 +59,3 @@ crontab:
 	fi
 	crontab $(CURDIR)/cron/crontab.txt
 	@echo "Crontab installed:"; crontab -l
-
-# setup-agent.sh downloads install.sh into the working directory and runs it
-# with sudo, so it may prompt for a password.
-agent:
-	chmod 600 logs/.env
-	cd logs && bash ./setup-agent.sh

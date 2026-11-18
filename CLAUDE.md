@@ -4,23 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-Ops scripts for the `home2.xyztem.dev` host, checked out there at `/home/idertator/services`: a nightly backup job for TopGroup production infrastructure, its crontab, and the installer for the t3-logs agent. Plain bash, no build system, no tests, no linter config.
+Ops scripts for the `home2.xyztem.dev` host, checked out there at `/home/idertator/services`: a nightly backup job for TopGroup production infrastructure and its crontab. Plain bash, no build system, no tests, no linter config.
 
 - `backup/` — `t3backup.sh` (the backup job) and a `Makefile` to install it.
 - `cron/crontab.txt` — crontab that runs the backup nightly at 23:00 and appends output to `~/crontab.log`.
-- `logs/setup-agent.sh` — downloads the t3-logs agent installer from the private `topgroupx/t3-logs` repo (tag `agent/v${T3LOGS_VERSION}`) and runs it with sudo. Reads `GH_TOKEN` from the environment or from `logs/.env`.
 
 ## Commands
 
-On the server, from the repo root (needs `backup/.env` and `logs/.env` in place):
+On the server, from the repo root (needs `backup/.env` in place):
 
 ```bash
-make install         # install-deps + check + backup + crontab + agent, in that order
+make install         # install-deps + check + backup + crontab, in that order
 make install-deps    # Debian 13 only, sudo: apt packages + postgresql-client-18 from PGDG
-make check           # verify required commands and both .env files exist
+make check           # verify required commands and backup/.env exist
 make backup          # backup/ install: symlink, `prod` MinIO alias
 make crontab         # REPLACES the user's crontab with cron/crontab.txt (old one saved to ~/crontab.<ts>.bak)
-make agent           # runs logs/setup-agent.sh (uses sudo)
 make -n install      # dry run
 bash -n backup/t3backup.sh  # syntax check (no test suite exists)
 ```
@@ -45,7 +43,7 @@ Bump `T3_BACKUP_VERSION` when changing the script.
 
 ## Secrets
 
-Secrets live in a `.env` next to what needs them: `backup/.env` (`MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`, read by `backup/Makefile` via `-include .env` to set up the `prod` MinIO alias) and `logs/.env` (`GH_TOKEN`). Both are gitignored and mode 0600. Each `.env.example` is the tracked list of required variables; keep them in sync. Plain `KEY=value`, no quotes. `t3backup.sh` itself reads no secrets.
+Secrets live in `backup/.env` (`MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`, read by `backup/Makefile` via `-include .env` to set up the `prod` MinIO alias). It is gitignored and mode 0600. `backup/.env.example` is the tracked list of required variables; keep the two in sync. Plain `KEY=value`, no quotes. `t3backup.sh` itself reads no secrets.
 
 Never write secret values into tracked files.
 
